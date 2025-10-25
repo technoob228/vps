@@ -1,0 +1,18 @@
+[Unit]
+Description=VPS Provisioner Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/vps-provisioner
+Environment="API_KEY=CHANGE-ME-IN-PRODUCTION"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+ExecStart=/usr/bin/gunicorn -w 4 -b 0.0.0.0:5001 --timeout 1200 --access-logfile - --error-logfile - app:app
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
