@@ -45,6 +45,7 @@ SECRET_KEY={{SECRET_KEY}}
 UTILS_SECRET={{UTILS_SECRET}}
 DATABASE_URL=postgres://outline:outline@postgres:5432/outline
 DATABASE_URL_TEST=postgres://outline:outline@postgres:5432/outline-test
+PGSSLMODE=disable
 REDIS_URL=redis://redis:6379
 URL=http://{{SERVER_IP}}:3000
 PORT=3000

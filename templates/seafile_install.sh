@@ -121,6 +121,35 @@ else
     exit 1
 fi
 
+# Fix Seafile configuration for file uploads
+echo "🔧 Configuring Seafile for proper file uploads..."
+
+# Wait a bit more for Seafile to fully initialize
+sleep 30
+
+# Configure FILE_SERVER_ROOT in seahub_settings.py
+docker exec seafile bash -c "cat >> /opt/seafile/conf/seahub_settings.py << 'EOFPY'
+
+# File upload configuration
+FILE_SERVER_ROOT = 'http://{{SERVER_IP}}:8000/seafhttp'
+MAX_UPLOAD_FILE_SIZE = 53687091200  # 50GB in bytes
+FILE_UPLOAD_MAX_MEMORY_SIZE = 209715200  # 200MB in bytes
+EOFPY"
+
+# Fix nginx configuration - remove http:// from server_name
+docker exec seafile bash -c "sed -i 's|server_name http://{{SERVER_IP}}|server_name {{SERVER_IP}}|g' /etc/nginx/sites-enabled/seafile.nginx.conf || true"
+
+# Increase nginx upload size limit to 50GB
+docker exec seafile bash -c "sed -i 's|client_max_body_size.*|client_max_body_size 50G;|g' /etc/nginx/sites-enabled/seafile.nginx.conf || true"
+
+# Reload nginx inside container
+docker exec seafile bash -c "nginx -s reload || true"
+
+echo "✅ Seafile configuration updated!"
+echo "   - FILE_SERVER_ROOT configured"
+echo "   - Max upload size: 50GB"
+echo "   - Nginx reloaded"
+
 # Configure firewall
 if command -v ufw &> /dev/null; then
     ufw allow 8000/tcp
