@@ -7,7 +7,7 @@ from pathlib import Path
 # Import our modules
 from config import Config
 from storage import JobStorage
-from validation import validate_provision_request
+from validation import validate_provision_request, validate_universal_provision_request
 from auth import require_api_key
 
 # Import provisioners
@@ -18,6 +18,13 @@ from provisioners.vaultwarden import setup_vaultwarden
 from provisioners.x3ui import setup_3x_ui
 from provisioners.seafile import setup_seafile
 from provisioners.filebrowser import setup_filebrowser
+from provisioners.universal import (
+    setup_universal,
+    InsufficientResourcesError,
+    PortConflictError,
+    SourceDownloadError,
+    UniversalProvisionerException
+)
 
 app = Flask(__name__)
 
@@ -169,6 +176,165 @@ def provision():
         "status_url": f"/status/{job_id}"
     }), 202
 
+
+def universal_provision_worker(job_id, data):
+    """Background worker for universal provisioning"""
+
+    try:
+        from ssh_utils import wait_for_ssh
+
+        ip = data['ip_address']
+        username = data['username']
+        password = data['password']
+
+        # Step 1: Wait for SSH
+        update_job_status(job_id, "waiting_ssh", progress=5,
+                         message="Waiting for server to be ready...")
+
+        success, attempts = wait_for_ssh(ip, username, password,
+                                        max_retries=Config.SSH_MAX_RETRIES)
+
+        if not success:
+            update_job_status(
+                job_id, "failed", progress=0,
+                error=f"SSH timeout after {attempts} attempts. Server not ready."
+            )
+            return
+
+        # Step 2: Run universal provisioner
+        update_job_status(job_id, "analyzing", progress=20,
+                         message=f"Analyzing {data['source_type']} source...")
+
+        result = setup_universal(
+            ip=ip,
+            username=username,
+            password=password,
+            source_type=data['source_type'],
+            source_url=data['source_url'],
+            app_name=data['app_name'],
+            custom_domain=data.get('custom_domain'),
+            job_id=job_id,
+            max_memory_mb=data.get('max_memory_mb', 2048),
+            max_cpu=data.get('max_cpu', 2.0),
+            ports=data.get('ports'),
+            env_vars=data.get('env_vars'),
+            dockerfile_path=data.get('dockerfile_path')
+        )
+
+        # Step 3: Complete
+        update_job_status(
+            job_id, "completed", progress=100,
+            message="Installation completed successfully!",
+            result=result
+        )
+
+    except InsufficientResourcesError as e:
+        update_job_status(
+            job_id, "rejected", progress=0,
+            error=str(e),
+            error_type="insufficient_resources"
+        )
+
+    except PortConflictError as e:
+        update_job_status(
+            job_id, "rejected", progress=0,
+            error=str(e),
+            error_type="port_conflict"
+        )
+
+    except SourceDownloadError as e:
+        update_job_status(
+            job_id, "failed", progress=0,
+            error=str(e),
+            error_type="source_download"
+        )
+
+    except UniversalProvisionerException as e:
+        update_job_status(
+            job_id, "failed", progress=0,
+            error=str(e),
+            error_type="provisioner"
+        )
+
+    except Exception as e:
+        error_msg = str(e)
+        print(f"❌ Universal provisioning failed for job {job_id}: {error_msg}")
+        update_job_status(
+            job_id, "failed", progress=0,
+            error=error_msg,
+            error_type="unknown"
+        )
+
+
+@app.route('/provision/universal', methods=['POST'])
+@require_api_key(Config.API_KEY)
+def provision_universal():
+    """
+    Universal provisioner - install any Docker application
+
+    Request body:
+    {
+        "ip_address": "95.179.200.45",
+        "username": "root",
+        "password": "secure_password",
+        "source_type": "docker-compose" | "docker-image" | "github-repo",
+        "source_url": "https://raw.githubusercontent.com/.../docker-compose.yml",
+        "app_name": "my-app",
+
+        // Optional
+        "custom_domain": "app.example.com",
+        "max_memory_mb": 2048,
+        "max_cpu": 2.0,
+        "ports": {"8080": "80"},
+        "env_vars": {"API_KEY": "xyz"},
+        "dockerfile_path": "docker/Dockerfile"
+    }
+
+    Response (202 Accepted):
+    {
+        "job_id": "abc-123-def",
+        "status": "started",
+        "status_url": "/status/abc-123-def"
+    }
+    """
+
+    data = request.json
+
+    # Validate input
+    valid, errors = validate_universal_provision_request(data)
+    if not valid:
+        return jsonify({"errors": errors}), 400
+
+    # Create job
+    job_id = str(uuid.uuid4())
+
+    # Save initial job status
+    storage.save_job(job_id, {
+        "job_id": job_id,
+        "status": "started",
+        "progress": 0,
+        "message": "Universal provisioning started",
+        "ip": data['ip_address'],
+        "app": data['app_name'],
+        "source_type": data['source_type'],
+        "source_url": data['source_url']
+    })
+
+    # Start background worker
+    thread = threading.Thread(
+        target=universal_provision_worker,
+        args=(job_id, data),
+        daemon=True
+    )
+    thread.start()
+
+    return jsonify({
+        "job_id": job_id,
+        "status": "started",
+        "status_url": f"/status/{job_id}"
+    }), 202
+
+
 @app.route('/status/<job_id>', methods=['GET'])
 def get_status(job_id):
     """
@@ -255,19 +421,25 @@ def start_cleanup_scheduler():
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("🚀 VPS Provisioner v2.0")
+    print("🚀 VPS Provisioner v2.1 - Universal Edition")
     print("=" * 60)
     print(f"📊 Database: {Config.DATABASE}")
     print(f"🔐 API Key: {Config.API_KEY[:10]}..." if len(Config.API_KEY) > 10 else "⚠️  No API key set!")
-    print(f"📱 Supported apps: {', '.join(Config.SUPPORTED_APPS)}")
+    print(f"📱 Pre-configured apps: {', '.join(Config.SUPPORTED_APPS)}")
     print("=" * 60)
     print("📋 Endpoints:")
-    print("   POST /provision - Create provisioning job (requires API key)")
+    print("   POST /provision - Create provisioning job (pre-configured apps)")
+    print("   POST /provision/universal - Install ANY Docker app (NEW! ⭐)")
     print("   GET  /status/<job_id> - Check job status")
     print("   GET  /jobs - List all jobs (requires API key)")
     print("   GET  /stats - Get statistics (requires API key)")
     print("   POST /cleanup - Cleanup old jobs (requires API key)")
     print("   GET  /health - Health check")
+    print("=" * 60)
+    print("✨ Universal Provisioner:")
+    print("   Install from docker-compose, docker-image, or github-repo")
+    print("   Automatic resource checking and safety limits")
+    print("   See UNIVERSAL_PROVISIONER_GUIDE.md for examples")
     print("=" * 60)
     print("\n🌐 Server starting on http://0.0.0.0:5001")
     print("⚠️  Use Gunicorn in production: gunicorn -w 4 -b 0.0.0.0:5001 app:app\n")

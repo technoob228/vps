@@ -1,11 +1,20 @@
-# VPS Provisioner v2.0
+# VPS Provisioner v2.1 - Universal Edition
 
 Automated VPS provisioning service for deploying self-hosted applications.
 
 ## 🚀 Features
 
+### ✨ NEW: Universal Provisioner (v2.1)
+- **Install ANY Docker application** - not limited to pre-configured apps
+- **3 source types**: docker-compose URL, Docker image, or GitHub repository
+- **Automatic resource checking** - checks RAM/disk/CPU BEFORE installation
+- **Smart safety limits** - prevents apps from killing your server
+- **Port conflict detection** - refuses installation if ports are taken
+- **See [UNIVERSAL_PROVISIONER_GUIDE.md](UNIVERSAL_PROVISIONER_GUIDE.md) for details**
+
+### Classic Features
 - **One-click deployment** of popular open-source applications
-- **6 supported apps**: n8n, WireGuard, Outline, Vaultwarden, 3X-UI, FileBrowser
+- **7 pre-configured apps**: n8n, WireGuard, Outline, Vaultwarden, 3X-UI, FileBrowser, Seafile
 - **Async job processing** with real-time status tracking
 - **Persistent storage** with SQLite (easy to migrate to PostgreSQL/Redis later)
 - **API authentication** with API keys
@@ -86,7 +95,29 @@ systemctl start vps-provisioner
 
 ## 📡 API Usage
 
-### 1. Create provisioning job
+### Quick Start: Universal Provisioner
+
+Install **any** Docker application:
+
+```bash
+# Example: Install Uptime Kuma monitoring
+curl -X POST http://localhost:5001/provision/universal \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "ip_address": "95.179.200.45",
+    "username": "root",
+    "password": "server_password",
+    "source_type": "docker-image",
+    "source_url": "louislam/uptime-kuma:1",
+    "app_name": "uptime-kuma",
+    "ports": {"3001": "3001"}
+  }'
+```
+
+**See [UNIVERSAL_PROVISIONER_GUIDE.md](UNIVERSAL_PROVISIONER_GUIDE.md) for complete documentation and examples.**
+
+### Classic: Pre-configured Apps
 
 ```bash
 curl -X POST http://localhost:5001/provision \
