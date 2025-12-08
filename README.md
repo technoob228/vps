@@ -1,10 +1,10 @@
-# VPS Provisioner v2.1 - Universal Edition
+# VPS Provisioner v2.1.1
 
 Automated VPS provisioning service for deploying self-hosted applications.
 
 ## 🚀 Features
 
-### ✨ NEW: Universal Provisioner (v2.1)
+### ✨ NEW: Universal Provisioner (v2.1.0)
 - **Install ANY Docker application** - not limited to pre-configured apps
 - **3 source types**: docker-compose URL, Docker image, or GitHub repository
 - **Automatic resource checking** - checks RAM/disk/CPU BEFORE installation
