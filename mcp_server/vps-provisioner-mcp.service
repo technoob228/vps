@@ -1,0 +1,23 @@
+[Unit]
+Description=VPS Provisioner MCP Server
+After=network.target vps-provisioner.service
+Documentation=https://github.com/technoob228/vps
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/vps/mcp_server
+Environment="PROVISIONER_URL=http://localhost:5001"
+Environment="API_KEY=39bf160a-775d-4408-babb-5098cd3e4353"
+ExecStart=/usr/bin/python3 /opt/vps/mcp_server/vps_provisioner_mcp.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+# Security settings
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
