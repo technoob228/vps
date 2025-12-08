@@ -44,6 +44,10 @@ fi
 # Create directory
 mkdir -p /opt/n8n/data
 
+# Fix permissions for n8n user (UID 1000)
+chown -R 1000:1000 /opt/n8n/data
+chmod -R 755 /opt/n8n/data
+
 # Create .env file with password
 cat > /opt/n8n/.env <<'EOF'
 N8N_PASSWORD={{N8N_PASSWORD}}
@@ -67,6 +71,7 @@ services:
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
+      - N8N_SECURE_COOKIE=false
       - GENERIC_TIMEZONE=UTC
       - N8N_LOG_LEVEL=info
     volumes:
