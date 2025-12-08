@@ -108,7 +108,7 @@ def health():
     """Health check endpoint"""
     return jsonify({
         "status": "healthy",
-        "version": "2.0",
+        "version": "2.1.1",
         "supported_apps": Config.SUPPORTED_APPS
     }), 200
 
@@ -421,7 +421,7 @@ def start_cleanup_scheduler():
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("🚀 VPS Provisioner v2.1 - Universal Edition")
+    print("🚀 VPS Provisioner v2.1.1")
     print("=" * 60)
     print(f"📊 Database: {Config.DATABASE}")
     print(f"🔐 API Key: {Config.API_KEY[:10]}..." if len(Config.API_KEY) > 10 else "⚠️  No API key set!")
